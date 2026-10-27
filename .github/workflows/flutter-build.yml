@@ -368,6 +368,26 @@ jobs:
           python3 .\build.py --portable --flutter --skip-portable-pack --hwcodec ${{ matrix.job.build-args }}
           mv ./flutter/build/windows/${{ matrix.job.flutter-arch }}/runner/Release ./rustdesk
 
+      - name: Verify Future Remote server configuration in Windows binary
+        if: ${{ matrix.job.target == 'x86_64-pc-windows-msvc' }}
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          binary = Path("rustdesk/rustdesk.exe").read_bytes()
+          required = [
+              b"Future Remote",
+              b"future-remote.duckdns.org",
+              b"NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8=",
+          ]
+          missing = [item.decode("ascii") for item in required if item not in binary]
+          if missing:
+              raise SystemExit("Future Remote binary validation failed; missing: " + ", ".join(missing))
+          print("Validated Future Remote product name, rendezvous hostname and public key in Windows binary.")
+          '@ | Set-Content -Encoding utf8 "$env:RUNNER_TEMP\verify_future_binary.py"
+          python "$env:RUNNER_TEMP\verify_future_binary.py"
+          if ($LASTEXITCODE -ne 0) { throw "Future Remote binary verification failed" }
+
           # Download usbmmidd_v2.zip and extract it to ./rustdesk
           Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
           Expand-Archive usbmmidd_v2.zip -DestinationPath .
