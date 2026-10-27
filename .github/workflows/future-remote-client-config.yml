@@ -7,6 +7,7 @@ on:
       - "scripts/configure_future_remote.py"
       - ".github/workflows/future-remote-client-config.yml"
       - "libs/hbb_common"
+      - "flutter/windows/runner/Runner.rc"
 
 permissions:
   contents: read
@@ -43,6 +44,9 @@ jobs:
           grep -F 'pub static ref APP_NAME: RwLock<String> = RwLock::new("Future Remote".to_owned());' libs/hbb_common/src/config.rs
           grep -F 'pub const RENDEZVOUS_SERVERS: &[&str] = &["future-remote.duckdns.org"];' libs/hbb_common/src/config.rs
           grep -F 'pub const RS_PUB_KEY: &str = "NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8=";' libs/hbb_common/src/config.rs
+          grep -F 'VALUE "CompanyName", "Future Soluções"' flutter/windows/runner/Runner.rc
+          grep -F 'VALUE "FileDescription", "Future Remote - Acesso remoto"' flutter/windows/runner/Runner.rc
+          grep -F 'VALUE "ProductName", "Future Remote"' flutter/windows/runner/Runner.rc
           changed="$(git diff --name-only)"
           test "$changed" = "libs/hbb_common"
           echo "Identity/server patch validated. This job does not compile installers or modify the VPS."
