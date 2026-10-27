@@ -2,37 +2,36 @@
 
 Este fork é a base de desenvolvimento do cliente Future Remote para uso interno da Future Soluções.
 
+## Identidade visual
+
+O projeto SPC Vision contém a logo PNG em `public/logo-future.png` e também versões SVG em `public/logo-future-black.svg` e `public/logo-future-white.svg`. Antes de incorporar assets ao cliente RustDesk, conferir contraste, transparência e dimensões; não presumir que a URL pública do CRM seja um caminho de arquivo local do repositório.
+
 ## Servidor self-hosted
 
 - ID / rendezvous server: `future-remote.duckdns.org`
-- Relay server: `future-remote.duckdns.org:21117` (o servidor anuncia o relay padrão automaticamente quando aplicável)
+- Relay server: `future-remote.duckdns.org:21117`
 - Chave pública do servidor: `NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8=`
 - API Server: deixe vazio para o servidor OSS, salvo se futuramente for configurada uma API própria compatível.
 
 A chave acima é a chave **pública**. Nunca publicar ou colocar em workflows a chave privada `id_ed25519` do servidor.
 
-## Estratégia de build
+## Configuração do cliente — validação do código
 
-O cliente RustDesk aceita os parâmetros de servidor personalizados durante a compilação através das variáveis `RENDEZVOUS_SERVER` e `RS_PUB_KEY`. As duas devem ser definidas juntas:
+O fork fixa o submódulo `libs/hbb_common` no commit `edefa08b798b7fbf70b274a4cdbf701c9e06f7a3`. Nesse commit, `src/config.rs` define `RENDEZVOUS_SERVERS` e `RS_PUB_KEY` como constantes de compilação. Portanto, **não usar como fato as variáveis de ambiente `RENDEZVOUS_SERVER` e `RS_PUB_KEY`**: elas não foram confirmadas como mecanismo de configuração nessa versão.
 
-```bash
-export RENDEZVOUS_SERVER="future-remote.duckdns.org"
-export RS_PUB_KEY="NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8="
-```
-
-A compilação precisa incluir os submódulos Git (`git submodule update --init --recursive`). Neste fork, `libs/hbb_common` é um submódulo; por isso, não presuma que `libs/hbb_common/src/config.rs` seja um arquivo versionado diretamente neste repositório. Confirme a versão e o estado do submódulo antes de editar o código.
+Próximo passo técnico: fazer a alteração mínima e revisável nas constantes do submódulo fixado (ou criar uma atualização de submódulo controlada), definir `APP_NAME`/identidade visual nos pontos suportados pelo projeto e só então preparar o workflow de build. Incluir submódulos ao clonar: `git submodule update --init --recursive`.
 
 ## Plano de entrega
 
-1. Validar o submódulo e o mecanismo de configuração na versão fixada pelo fork.
-2. Configurar o build para Windows x64 e macOS Intel/Apple Silicon.
-3. Executar os workflows e corrigir erros de build antes de distribuir.
+1. Validar a versão fixada do submódulo e o mecanismo de configuração.
+2. Integrar a marca Future Remote sem remover atribuições/licenças upstream.
+3. Configurar e executar build para Windows x64 e macOS Intel/Apple Silicon.
 4. Investigar Windows 32 bits separadamente; não prometer esse artefato até existir um alvo de compilação compatível.
 5. Validar em duas máquinas que os clientes usam o servidor Future Remote e que a conexão funciona.
 
 ## Avisos
 
-- Não se deve remover indiscriminadamente chamadas da API oficial para tentar suprimir uma mensagem. Primeiro identifique de onde vem o aviso; configurar o servidor próprio e remover uma verificação de aviso são coisas diferentes.
-- Preserve os avisos de licença e atribuição exigidos pelo projeto upstream. O uso interno não elimina automaticamente as obrigações da licença.
-- Não inclua chaves privadas, tokens ou secrets no código, nos logs ou em artefatos públicos.
-- Não altere a configuração da VPS como parte do build do cliente.
+- Não remover indiscriminadamente chamadas da API oficial para tentar suprimir uma mensagem. Primeiro identificar a origem do aviso; configurar o servidor próprio e remover uma verificação de aviso são coisas diferentes.
+- O uso interno não elimina automaticamente as obrigações da licença do projeto upstream.
+- Não incluir chaves privadas, tokens ou secrets no código, nos logs ou em artefatos públicos.
+- Não alterar a configuração da VPS como parte do build do cliente.
