@@ -190,6 +190,13 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Apply Future Remote identity and server settings
+        if: ${{ matrix.job.target == 'x86_64-pc-windows-msvc' }}
+        shell: pwsh
+        run: |
+          python scripts/configure_future_remote.py
+          if ($LASTEXITCODE -ne 0) { throw "Future Remote configuration failed" }
+
       - name: Restore bridge files
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
