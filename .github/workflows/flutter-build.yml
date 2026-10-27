@@ -201,16 +201,19 @@ jobs:
         if: ${{ matrix.job.target == 'x86_64-pc-windows-msvc' }}
         shell: pwsh
         run: |
-          $logoUrl = "https://raw.githubusercontent.com/futurespcbrasil-hash/spc-vision-boost/main/public/logo-shield.png"
+          $logoUrl = "https://raw.githubusercontent.com/futurespcbrasil-hash/spc-vision-boost/main/public/logo-future.png"
           Invoke-WebRequest -Uri $logoUrl -OutFile "$env:RUNNER_TEMP\future-logo.png"
           python -m pip install --disable-pip-version-check Pillow
           @'
           from PIL import Image, ImageOps
           from pathlib import Path
           src = Image.open(Path(__import__("os").environ["RUNNER_TEMP"]) / "future-logo.png").convert("RGBA")
-          # Fit the real Future Soluções shield mark into a transparent square icon.
+          # The company's horizontal logo begins with its shield mark. Crop that mark,
+          # then center it on transparency so it remains legible at Windows icon sizes.
+          side = min(src.width, src.height)
+          mark = src.crop((0, 0, side, side))
           square = Image.new("RGBA", (512, 512), (255, 255, 255, 0))
-          contained = ImageOps.contain(src, (440, 440), method=Image.Resampling.LANCZOS)
+          contained = ImageOps.contain(mark, (440, 440), method=Image.Resampling.LANCZOS)
           square.alpha_composite(contained, ((512-contained.width)//2, (512-contained.height)//2))
           out = Path("flutter/windows/runner/resources/app_icon.ico")
           out.parent.mkdir(parents=True, exist_ok=True)
