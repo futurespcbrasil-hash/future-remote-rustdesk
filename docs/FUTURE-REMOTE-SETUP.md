@@ -11,27 +11,28 @@ O projeto SPC Vision contém a logo PNG em `public/logo-future.png` e também ve
 - ID / rendezvous server: `future-remote.duckdns.org`
 - Relay server: `future-remote.duckdns.org:21117`
 - Chave pública do servidor: `NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8=`
-- API Server: deixe vazio para o servidor OSS, salvo se futuramente for configurada uma API própria compatível.
+- API Server: deixe vazio no servidor OSS, salvo se uma API própria compatível for configurada.
 
-A chave acima é a chave **pública**. Nunca publicar ou colocar em workflows a chave privada `id_ed25519` do servidor.
+A chave acima é **pública**. Nunca publicar ou colocar em workflows a chave privada `id_ed25519` do servidor.
 
-## Configuração do cliente — validação do código
+## Configuração do cliente
 
-O fork fixa o submódulo `libs/hbb_common` no commit `edefa08b798b7fbf70b274a4cdbf701c9e06f7a3`. Nesse commit, `src/config.rs` define `RENDEZVOUS_SERVERS` e `RS_PUB_KEY` como constantes de compilação. Portanto, **não usar como fato as variáveis de ambiente `RENDEZVOUS_SERVER` e `RS_PUB_KEY`**: elas não foram confirmadas como mecanismo de configuração nessa versão.
+O fork fixa `libs/hbb_common` no commit `edefa08b798b7fbf70b274a4cdbf701c9e06f7a3`. Nessa versão, `RENDEZVOUS_SERVERS` e `RS_PUB_KEY` são constantes de compilação. Não presumir que variáveis de ambiente alterem essas constantes.
 
-Próximo passo técnico: fazer a alteração mínima e revisável nas constantes do submódulo fixado (ou criar uma atualização de submódulo controlada), definir `APP_NAME`/identidade visual nos pontos suportados pelo projeto e só então preparar o workflow de build. Incluir submódulos ao clonar: `git submodule update --init --recursive`.
+O script `scripts/configure_future_remote.py` aplica a configuração do servidor de forma reproduzível e estrita: ele falha se a estrutura das declarações upstream mudar e confirma o resultado. O script altera apenas o checkout local do submódulo; não altera o commit do submódulo no Git nem a VPS. O workflow `Future Remote - client configuration validation` verifica o pin do submódulo e valida o diff.
 
-## Plano de entrega
+## Etapas de entrega
 
-1. Validar a versão fixada do submódulo e o mecanismo de configuração.
-2. Integrar a marca Future Remote sem remover atribuições/licenças upstream.
-3. Configurar e executar build para Windows x64 e macOS Intel/Apple Silicon.
-4. Investigar Windows 32 bits separadamente; não prometer esse artefato até existir um alvo de compilação compatível.
-5. Validar em duas máquinas que os clientes usam o servidor Future Remote e que a conexão funciona.
+1. Validar o patch das constantes do servidor.
+2. Definir nome do aplicativo, identidade visual, ícones e metadados por plataforma sem remover avisos legítimos ou atribuições/licenças upstream.
+3. Compilar primeiro Windows x64; inspecionar logs e artefatos antes de ampliar para macOS Intel/Apple Silicon.
+4. Investigar Windows 32 bits separadamente; não prometer artefato até existir alvo compatível.
+5. Testar em duas máquinas que os clientes apontam para o servidor Future Remote e que a conexão funciona.
 
-## Avisos
+## Limitações e segurança
 
-- Não remover indiscriminadamente chamadas da API oficial para tentar suprimir uma mensagem. Primeiro identificar a origem do aviso; configurar o servidor próprio e remover uma verificação de aviso são coisas diferentes.
-- O uso interno não elimina automaticamente as obrigações da licença do projeto upstream.
-- Não incluir chaves privadas, tokens ou secrets no código, nos logs ou em artefatos públicos.
-- Não alterar a configuração da VPS como parte do build do cliente.
+- A validação de configuração não equivale a uma compilação nem a um teste de conexão.
+- Não remover indiscriminadamente chamadas da API oficial para suprimir uma mensagem. Primeiro identificar a origem do aviso.
+- Uso interno não elimina automaticamente obrigações da licença upstream.
+- Não incluir chaves privadas, tokens ou secrets no código, logs ou artefatos públicos.
+- Nenhuma configuração da VPS é alterada por estes scripts/workflows.
