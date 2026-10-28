@@ -7,6 +7,7 @@ on:
       - "scripts/configure_future_remote.py"
       - ".github/workflows/future-remote-client-config.yml"
       - "libs/hbb_common"
+      - "libs/portable/Cargo.toml"
       - "flutter/windows/runner/Runner.rc"
       - "flutter/macos/Runner/Info.plist"
       - "flutter/ios/Runner/Info.plist"
@@ -51,6 +52,10 @@ jobs:
           grep -F 'VALUE "ProductName", "Future Remote"' flutter/windows/runner/Runner.rc
           grep -F '<string>Future Remote</string>' flutter/macos/Runner/Info.plist
           grep -F '<string>Future Remote</string>' flutter/ios/Runner/Info.plist
+          grep -F 'CompanyName = "Future Soluções"' libs/portable/Cargo.toml
+          grep -F 'ProductName = "Future Remote"' libs/portable/Cargo.toml
+          grep -F 'FileDescription = "Future Remote - Acesso remoto"' libs/portable/Cargo.toml
+          grep -F 'OriginalFilename = "FutureRemote.exe"' libs/portable/Cargo.toml
           changed="$(git diff --name-only)"
           test "$changed" = "libs/hbb_common"
           echo "Identity/server patch validated. This job does not compile installers or modify the VPS."

@@ -512,6 +512,30 @@ jobs:
           mkdir -p ./SignOutput
           mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.exe
 
+      - name: Verify Future Remote portable executable branding
+        if: ${{ matrix.job.target == 'x86_64-pc-windows-msvc' }}
+        shell: powershell
+        run: |
+          $exePath = ".\SignOutput\rustdesk-$env:VERSION-${{ matrix.job.arch }}.exe"
+          $versionInfo = (Get-Item -LiteralPath $exePath).VersionInfo
+          $expected = @{
+            ProductName = "Future Remote"
+            CompanyName = "Future Soluções"
+            FileDescription = "Future Remote - Acesso remoto"
+            OriginalFilename = "FutureRemote.exe"
+          }
+          foreach ($field in $expected.Keys) {
+            $actual = ([string]$versionInfo.$field).Trim()
+            if ($actual -cne $expected[$field]) {
+              throw "Portable EXE $field is '$actual'; expected '$($expected[$field])'."
+            }
+          }
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path -LiteralPath $exePath))
+          if ($null -eq $icon -or $icon.Width -lt 16) { throw "Future Remote portable EXE has no valid Windows icon resource." }
+          $icon.Dispose()
+          Write-Host "Validated Future Remote portable EXE metadata and Windows icon resource."
+
       - name: Upload Future Remote Windows EXE for testing
         if: env.UPLOAD_ARTIFACT == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
