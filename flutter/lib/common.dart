@@ -3755,8 +3755,8 @@ Widget loadPowered(BuildContext context) {
 }
 
 const _kDefaultLogoAsset = 'assets/logo.png';
-const _kLightLogoAsset = 'assets/logo_light.png';
-const _kDarkLogoAsset = 'assets/logo_dark.png';
+const _kLightLogoAsset = 'assets/future-logo-light.svg';
+const _kDarkLogoAsset = 'assets/future-logo-dark.svg';
 
 List<String> _logoAssetCandidatesForBrightness(Brightness brightness) {
   return brightness == Brightness.dark
@@ -3765,7 +3765,7 @@ List<String> _logoAssetCandidatesForBrightness(Brightness brightness) {
 }
 
 Future<String?> _resolveLogoAsset(Brightness brightness) async {
-  for (final asset in _logoAssetCandidatesForBrightness(brightness)) {
+  for (final asset in _logoAssetCandidatesForBrightness(brrightness)) {
     try {
       await rootBundle.load(asset);
       return asset;
@@ -3799,20 +3799,22 @@ class _LogoState extends State<_Logo> {
       future: _logoFutureFor(Theme.of(context).brightness),
       builder: (BuildContext context, AsyncSnapshot<String?> snapshot) {
         final asset = snapshot.data;
-        if (asset != null) {
-          final image = Image.asset(
-            asset,
-            fit: BoxFit.contain,
-            errorBuilder: (ctx, error, stackTrace) {
-              return Container();
-            },
-          );
-          return Container(
-            constraints: BoxConstraints(maxWidth: 300, maxHeight: 60),
-            child: image,
-          ).marginOnly(left: 12, right: 12, top: 12);
-        }
-        return const Offstage();
+        if (asset == null) return const Offstage();
+        final Widget logo = asset.toLowerCase().endsWith('.svg')
+            ? SvgPicture.asset(
+                asset,
+                fit: BoxFit.contain,
+                placeholderBuilder: (_) => const SizedBox.shrink(),
+              )
+            : Image.asset(
+                asset,
+                fit: BoxFit.contain,
+                errorBuilder: (ctx, error, stackTrace) => const SizedBox.shrink(),
+              );
+        return Container(
+          constraints: const BoxConstraints(maxWidth: 300, maxHeight: 60),
+          child: logo,
+        ).marginOnly(left: 12, right: 12, top: 12);
       },
     );
   }
