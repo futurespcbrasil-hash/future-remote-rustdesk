@@ -520,7 +520,7 @@ jobs:
           $versionInfo = (Get-Item -LiteralPath $exePath).VersionInfo
           $expected = @{
             ProductName = "Future Remote"
-            CompanyName = "Future Soluções"
+            CompanyName = ("Future Solu" + [char]0x00E7 + [char]0x00F5 + "es")
             FileDescription = "Future Remote - Acesso remoto"
             OriginalFilename = "FutureRemote.exe"
           }
