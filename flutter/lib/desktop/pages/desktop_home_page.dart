@@ -612,8 +612,10 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
                 colors: [
-                  Color.fromARGB(255, 226, 66, 188),
-                  Color.fromARGB(255, 244, 114, 124),
+                  // Future Soluções brand palette: purple instead of the default
+                  // pink/red install-warning gradient.
+                  Color(0xFF7B2CBF),
+                  Color(0xFF5A189A),
                 ],
               )),
               padding: EdgeInsets.all(20),
