@@ -9,8 +9,8 @@ on:
   push:
     branches:
       - master
+      - future-remote-bootstrap
     paths-ignore:
-      - ".github/**"
       - "docs/**"
       - "README.md"
       - "res/**"
