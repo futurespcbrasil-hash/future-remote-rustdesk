@@ -1,4 +1,4 @@
-name: Full Flutter CI
+name: Future Remote - build installers and Flutter CI
 
 on:
   workflow_dispatch:
