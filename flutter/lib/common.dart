@@ -3765,7 +3765,7 @@ List<String> _logoAssetCandidatesForBrightness(Brightness brightness) {
 }
 
 Future<String?> _resolveLogoAsset(Brightness brightness) async {
-  for (final asset in _logoAssetCandidatesForBrightness(brrightness)) {
+  for (final asset in _logoAssetCandidatesForBrightness(brightness)) {
     try {
       await rootBundle.load(asset);
       return asset;
