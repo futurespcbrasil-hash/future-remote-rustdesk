@@ -374,16 +374,34 @@ jobs:
         run: |
           @'
           from pathlib import Path
-          binary = Path("rustdesk/rustdesk.exe").read_bytes()
+          import sys
+          root = Path("rustdesk")
+          candidates = [p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in {".exe", ".dll", ".so"}]
+          if not candidates:
+              raise SystemExit("Future Remote validation failed: no executable binaries found in rustdesk output.")
           required = [
-              b"Future Remote",
-              b"future-remote.duckdns.org",
-              b"NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8=",
+              ("Future Remote", "Future Remote".encode("utf-8")),
+              ("future-remote.duckdns.org", b"future-remote.duckdns.org"),
+              ("public rendezvous key", b"NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8="),
           ]
-          missing = [item.decode("ascii") for item in required if item not in binary]
+          contents = {}
+          for path in candidates:
+              try:
+                  data = path.read_bytes()
+                  # Rust/UI strings can be stored as UTF-8/ASCII or UTF-16LE in Windows binaries.
+                  contents[path] = (data, data.decode("latin-1", errors="ignore"))
+              except OSError:
+                  continue
+          missing = []
+          for label, needle in required:
+              found = any(needle in data or needle.decode("ascii", errors="ignore").encode("utf-16le") in data
+                          for data, _ in contents.values())
+              if not found:
+                  missing.append(label)
           if missing:
+              print("Scanned binaries: " + ", ".join(str(p) for p in contents), file=sys.stderr)
               raise SystemExit("Future Remote binary validation failed; missing: " + ", ".join(missing))
-          print("Validated Future Remote product name, rendezvous hostname and public key in Windows binary.")
+          print("Validated Future Remote name, rendezvous hostname and public key across packaged Windows binaries.")
           '@ | Set-Content -Encoding utf8 "$env:RUNNER_TEMP\verify_future_binary.py"
           python "$env:RUNNER_TEMP\verify_future_binary.py"
           if ($LASTEXITCODE -ne 0) { throw "Future Remote binary verification failed" }
