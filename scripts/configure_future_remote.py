@@ -8,7 +8,7 @@ import re
 import sys
 
 CONFIG = Path("libs/hbb_common/src/config.rs")
-APP_NAME = "Future Remote"
+APP_NAME = "Future-Remote"
 HOST = "future-remote.duckdns.org"
 PUBLIC_KEY = "NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8="
 
@@ -42,7 +42,7 @@ def main() -> int:
         print("Future Remote app name and server configuration are already applied.")
     else:
         CONFIG.write_text(updated, encoding="utf-8")
-        print("Applied Future Remote app name, rendezvous hostname and public key.")
+        print("Applied Future-Remote installer identifier, rendezvous hostname and public key.")
     check = CONFIG.read_text(encoding="utf-8")
     required = [
         f'RwLock::new("{APP_NAME}".to_owned())',
@@ -55,7 +55,7 @@ def main() -> int:
     if "id_ed25519" in check or "PRIVATE KEY" in check:
         print("ERROR: private-key-like content detected; refusing to continue.", file=sys.stderr)
         return 4
-    print(f"Validated app name: {APP_NAME}")
+    print(f"Validated installer identifier: {APP_NAME}")
     print(f"Validated rendezvous host: {HOST}")
     print("Validated public key: present (public key only)")
     return 0
