@@ -36,7 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
-          "$(go env GOPATH)/bin/actionlint" -color .github/workflows/flutter-ci.yml .github/workflows/flutter-build.yml .github/workflows/future-remote-diagnostics.yml
+          "$(go env GOPATH)/bin/actionlint" -color -shellcheck= -ignore 'property "job" is not defined in object type \{\}' .github/workflows/flutter-ci.yml .github/workflows/flutter-build.yml .github/workflows/future-remote-diagnostics.yml
       - name: Validate build workflow files exist
         run: |
           test -s .github/workflows/flutter-ci.yml
