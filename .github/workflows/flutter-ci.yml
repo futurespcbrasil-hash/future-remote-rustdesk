@@ -31,7 +31,7 @@ jobs:
     name: Verify Windows x64, Windows x86 and universal macOS artifacts
     needs: [run-ci]
     if: ${{ success() }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Download Windows x64 installer
