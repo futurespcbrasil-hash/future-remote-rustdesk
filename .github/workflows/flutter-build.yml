@@ -1276,7 +1276,7 @@ jobs:
           # Opt-in, and its macOS tests run nowhere else.
           cargo test --locked --release -p clipboard --features unix-file-copy-paste
 
-      - name: "create unsigned dmg (disabled: universal installer only)"
+      - name: "Skip unsigned DMG creation - universal installer only"
         if: false
         run: |
           CREATE_DMG="$(command -v create-dmg)"
