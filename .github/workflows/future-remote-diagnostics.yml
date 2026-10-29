@@ -5,7 +5,7 @@ on:
     branches:
       - future-remote-bootstrap
     paths:
-      - ".github/workflows/future-remote-diagnostics.yml"
+      - ".github/workflows/**"
   workflow_dispatch:
 
 permissions:
@@ -26,8 +26,18 @@ jobs:
         run: |
           python3 --version
           python3 scripts/configure_future_remote.py
+      - name: Install Go for actionlint
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - name: Lint every GitHub Actions workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          "$(go env GOPATH)/bin/actionlint" -color .github/workflows/*.yml
       - name: Validate build workflow files exist
         run: |
           test -s .github/workflows/flutter-ci.yml
           test -s .github/workflows/flutter-build.yml
-          echo "Diagnostic passed. The basic runner, checkout, and configuration script work."
+          echo "Diagnostic passed. Basic runner, client configuration, and workflow lint are successful."
