@@ -23,6 +23,7 @@ jobs:
     # Avoid running the reusable build workflow for untrusted fork PRs.
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     uses: ./.github/workflows/flutter-build.yml
+    secrets: inherit
     with:
       upload-artifact: true
 
