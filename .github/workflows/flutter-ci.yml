@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
   pull_request:
     paths-ignore:
-    - "docs/**"
-    - "README.md"
+      - "docs/**"
+      - "README.md"
   push:
     branches:
       - master
@@ -22,7 +22,69 @@ permissions:
 
 jobs:
   run-ci:
+    # Avoid running the reusable build workflow for untrusted fork PRs.
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     uses: ./.github/workflows/flutter-build.yml
     with:
       upload-artifact: true
+
+  verify-future-remote-installers:
+    name: Verify Windows x64, Windows ARM64 and universal macOS artifacts
+    needs: [run-ci]
+    if: ${{ success() }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Download Windows x64 installer
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: future-remote-windows-x86_64
+          path: artifacts/windows-x64
+
+      - name: Download Windows ARM64 installer
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: future-remote-windows-aarch64
+          path: artifacts/windows-arm64
+
+      - name: Download universal macOS DMG
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: future-remote-universal-macos
+          path: artifacts/macos-universal
+
+      - name: Validate artifact files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+
+          checks = [
+              ("Windows x64", Path("artifacts/windows-x64"), ".exe", b"MZ", 1_000_000),
+              ("Windows ARM64", Path("artifacts/windows-arm64"), ".exe", b"MZ", 1_000_000),
+              ("macOS universal", Path("artifacts/macos-universal"), ".dmg", None, 10_000_000),
+          ]
+          failed = False
+          for label, root, suffix, magic, minimum_size in checks:
+              files = list(root.rglob(f"*{suffix}")) if root.exists() else []
+              if len(files) != 1:
+                  print(f"FAIL: {label}: expected one {suffix} file, found {len(files)} under {root}")
+                  failed = True
+                  continue
+              path = files[0]
+              size = path.stat().st_size
+              if size < minimum_size:
+                  print(f"FAIL: {label}: suspiciously small artifact ({size} bytes): {path}")
+                  failed = True
+                  continue
+              if magic and path.read_bytes()[:len(magic)] != magic:
+                  print(f"FAIL: {label}: invalid executable header: {path}")
+                  failed = True
+                  continue
+              print(f"PASS: {label}: {path.name} ({size:,} bytes)")
+          if failed:
+              sys.exit(1)
+          print("All three expected Future Remote installer artifacts are present and pass basic file checks.")
+          PY
