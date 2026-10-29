@@ -1339,7 +1339,7 @@ jobs:
   build-universal-macOS:
     name: Build Future Remote universal macOS app
     needs: [build-for-macOS]
-    runs-on: macos-14
+    runs-on: macos-15
     if: ${{ inputs.upload-artifact }}
     steps:
       - name: Checkout source code
