@@ -327,6 +327,11 @@ jobs:
         with:
           prefix-key: ${{ matrix.job.os }}
 
+      - name: Rebuild hbb_common with Future Remote identity
+        if: ${{ matrix.job.target == 'x86_64-pc-windows-msvc' }}
+        shell: bash
+        run: cargo clean -p hbb_common
+
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
@@ -730,6 +735,10 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           prefix-key: ${{ matrix.job.os }}-sciter
+
+      - name: Rebuild hbb_common with Future Remote identity
+        shell: bash
+        run: cargo clean -p hbb_common
 
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
@@ -1164,6 +1173,10 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           prefix-key: ${{ matrix.job.os }}
+
+      - name: Rebuild hbb_common with Future Remote identity
+        shell: bash
+        run: cargo clean -p hbb_common
 
       - name: Restore bridge files
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
