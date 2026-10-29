@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           git diff --check
-          grep -F 'pub static ref APP_NAME: RwLock<String> = RwLock::new("Future Remote".to_owned());' libs/hbb_common/src/config.rs
+          grep -F 'pub static ref APP_NAME: RwLock<String> = RwLock::new("Future-Remote".to_owned());' libs/hbb_common/src/config.rs
           grep -F 'pub const RENDEZVOUS_SERVERS: &[&str] = &["future-remote.duckdns.org"];' libs/hbb_common/src/config.rs
           grep -F 'pub const RS_PUB_KEY: &str = "NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8=";' libs/hbb_common/src/config.rs
           grep -F 'VALUE "CompanyName", "Future Soluções"' flutter/windows/runner/Runner.rc
