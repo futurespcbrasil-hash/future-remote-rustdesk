@@ -59,7 +59,7 @@ env:
 
 jobs:
   validate-update-metadata-keys:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -190,6 +190,42 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Apply Future Remote identity and server settings
+        if: ${{ matrix.job.target == 'x86_64-pc-windows-msvc' }}
+        shell: pwsh
+        run: |
+          python scripts/configure_future_remote.py
+          if ($LASTEXITCODE -ne 0) { throw "Future Remote configuration failed" }
+
+      - name: Apply Future Remote Windows branding
+        if: ${{ matrix.job.target == 'x86_64-pc-windows-msvc' }}
+        shell: pwsh
+        run: |
+          $logoUrl = "https://raw.githubusercontent.com/futurespcbrasil-hash/spc-vision-boost/main/public/logo-future.png"
+          Invoke-WebRequest -Uri $logoUrl -OutFile "$env:RUNNER_TEMP\future-logo.png"
+          python -m pip install --disable-pip-version-check Pillow
+          @'
+          from PIL import Image, ImageOps
+          from pathlib import Path
+          src = Image.open(Path(__import__("os").environ["RUNNER_TEMP"]) / "future-logo.png").convert("RGBA")
+          # The company's horizontal logo begins with its shield mark. Crop that mark,
+          # then center it on transparency so it remains legible at Windows icon sizes.
+          side = min(src.width, src.height)
+          mark = src.crop((0, 0, side, side))
+          square = Image.new("RGBA", (512, 512), (255, 255, 255, 0))
+          contained = ImageOps.contain(mark, (440, 440), method=Image.Resampling.LANCZOS)
+          square.alpha_composite(contained, ((512-contained.width)//2, (512-contained.height)//2))
+          out = Path("flutter/windows/runner/resources/app_icon.ico")
+          out.parent.mkdir(parents=True, exist_ok=True)
+          square.save(out, format="ICO", sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])
+          # Keep the tray/app icon resource in sync with the Windows executable icon.
+          Path("res").mkdir(exist_ok=True)
+          square.save("res/icon.ico", format="ICO", sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])
+          print("Generated Future Soluções branded Windows and tray icons.")
+          '@ | Set-Content -Encoding utf8 "$env:RUNNER_TEMP\make_future_icon.py"
+          python "$env:RUNNER_TEMP\make_future_icon.py"
+          if ($LASTEXITCODE -ne 0) { throw "Future Remote icon generation failed" }
+
       - name: Restore bridge files
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -291,6 +327,11 @@ jobs:
         with:
           prefix-key: ${{ matrix.job.os }}
 
+      - name: Rebuild hbb_common with Future Remote identity
+        if: ${{ matrix.job.target == 'x86_64-pc-windows-msvc' }}
+        shell: bash
+        run: cargo clean -p hbb_common
+
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
@@ -331,6 +372,44 @@ jobs:
           # --hwcodec is shared by all Windows targets; per-target extras (e.g. --vram) come from the matrix
           python3 .\build.py --portable --flutter --skip-portable-pack --hwcodec ${{ matrix.job.build-args }}
           mv ./flutter/build/windows/${{ matrix.job.flutter-arch }}/runner/Release ./rustdesk
+
+      - name: Verify Future Remote server configuration in Windows binary
+        if: ${{ matrix.job.target == 'x86_64-pc-windows-msvc' }}
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import sys
+          root = Path("rustdesk")
+          candidates = [p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in {".exe", ".dll", ".so"}]
+          if not candidates:
+              raise SystemExit("Future Remote validation failed: no executable binaries found in rustdesk output.")
+          required = [
+              ("Future Remote", "Future Remote".encode("utf-8")),
+              ("future-remote.duckdns.org", b"future-remote.duckdns.org"),
+              ("public rendezvous key", b"NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8="),
+          ]
+          contents = {}
+          for path in candidates:
+              try:
+                  data = path.read_bytes()
+                  # Rust/UI strings can be stored as UTF-8/ASCII or UTF-16LE in Windows binaries.
+                  contents[path] = (data, data.decode("latin-1", errors="ignore"))
+              except OSError:
+                  continue
+          missing = []
+          for label, needle in required:
+              found = any(needle in data or needle.decode("ascii", errors="ignore").encode("utf-16le") in data
+                          for data, _ in contents.values())
+              if not found:
+                  missing.append(label)
+          if missing:
+              print("Scanned binaries: " + ", ".join(str(p) for p in contents), file=sys.stderr)
+              raise SystemExit("Future Remote binary validation failed; missing: " + ", ".join(missing))
+          print("Validated Future Remote name, rendezvous hostname and public key across packaged Windows binaries.")
+          '@ | Set-Content -Encoding utf8 "$env:RUNNER_TEMP\verify_future_binary.py"
+          python "$env:RUNNER_TEMP\verify_future_binary.py"
+          if ($LASTEXITCODE -ne 0) { throw "Future Remote binary verification failed" }
 
           # Download usbmmidd_v2.zip and extract it to ./rustdesk
           Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
@@ -438,6 +517,39 @@ jobs:
           mkdir -p ./SignOutput
           mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.exe
 
+      - name: Verify Future Remote portable executable branding
+        if: ${{ matrix.job.target == 'x86_64-pc-windows-msvc' }}
+        shell: powershell
+        run: |
+          $exePath = ".\SignOutput\rustdesk-$env:VERSION-${{ matrix.job.arch }}.exe"
+          $versionInfo = (Get-Item -LiteralPath $exePath).VersionInfo
+          $expected = @{
+            ProductName = "Future Remote"
+            CompanyName = ("Future Solu" + [char]0x00E7 + [char]0x00F5 + "es")
+            FileDescription = "Future Remote - Acesso remoto"
+            OriginalFilename = "FutureRemote.exe"
+          }
+          foreach ($field in $expected.Keys) {
+            $actual = ([string]$versionInfo.$field).Trim()
+            if ($actual -cne $expected[$field]) {
+              throw "Portable EXE $field is '$actual'; expected '$($expected[$field])'."
+            }
+          }
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path -LiteralPath $exePath))
+          if ($null -eq $icon -or $icon.Width -lt 16) { throw "Future Remote portable EXE has no valid Windows icon resource." }
+          $icon.Dispose()
+          Write-Host "Validated Future Remote portable EXE metadata and Windows icon resource."
+
+      - name: Upload Future Remote Windows EXE for testing
+        if: env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: future-remote-windows-${{ matrix.job.arch }}
+          path: ./SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.exe
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
         with:
@@ -534,7 +646,7 @@ jobs:
 
       - name: Publish Release
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
-        if: env.UPLOAD_ARTIFACT == 'true' && env.PUBLISH_UPDATE_METADATA != 'true'
+        if: env.UPLOAD_ARTIFACT == 'true' && env.PUBLISH_UPDATE_METADATA != 'true' && github.event_name != 'pull_request'
         with:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
@@ -575,6 +687,30 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Apply Future Remote identity and 32-bit Windows branding
+        shell: pwsh
+        run: |
+          python scripts/configure_future_remote.py
+          if ($LASTEXITCODE -ne 0) { throw "Future Remote configuration failed" }
+          $logoUrl = "https://raw.githubusercontent.com/futurespcbrasil-hash/spc-vision-boost/main/public/logo-future.png"
+          Invoke-WebRequest -Uri $logoUrl -OutFile "$env:RUNNER_TEMP\future-logo.png"
+          python -m pip install --disable-pip-version-check Pillow
+          @'
+          from PIL import Image, ImageOps
+          from pathlib import Path
+          import os
+          src = Image.open(Path(os.environ["RUNNER_TEMP"]) / "future-logo.png").convert("RGBA")
+          side = min(src.width, src.height)
+          mark = src.crop((0, 0, side, side))
+          square = Image.new("RGBA", (512, 512), (255, 255, 255, 0))
+          mark = ImageOps.contain(mark, (440, 440), method=Image.Resampling.LANCZOS)
+          square.alpha_composite(mark, ((512-mark.width)//2, (512-mark.height)//2))
+          square.save("res/icon.ico", format="ICO", sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])
+          print("Generated Future Soluções icon for the 32-bit Windows build.")
+          '@ | Set-Content -Encoding utf8 "$env:RUNNER_TEMP\make_future_icon.py"
+          python "$env:RUNNER_TEMP\make_future_icon.py"
+          if ($LASTEXITCODE -ne 0) { throw "Future Remote icon generation failed" }
+
       - name: Install LLVM and Clang
         uses: rustdesk-org/install-llvm-action-32bit@6aa7d9ad3df84dff01cd4596dd0fc880a7f47fce # no release tag; commit 2026-05-26
         with:
@@ -599,6 +735,10 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           prefix-key: ${{ matrix.job.os }}-sciter
+
+      - name: Rebuild hbb_common with Future Remote identity
+        shell: bash
+        run: cargo clean -p hbb_common
 
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
@@ -647,6 +787,27 @@ jobs:
           # we need the x64 exe to install and uninstall the driver.
           rm -rf ./usbmmidd_v2/deviceinstaller.exe ./usbmmidd_v2/usbmmidd.bat
           mv ./usbmmidd_v2 ./Release || true
+
+      - name: Verify Future Remote configuration in 32-bit Windows binary
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import sys
+          binary = Path("Release/rustdesk.exe").read_bytes()
+          required = [
+              ("Future-Remote application identifier", b"Future-Remote"),
+              ("Future Remote rendezvous hostname", b"future-remote.duckdns.org"),
+              ("public rendezvous key", b"NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8="),
+          ]
+          missing = [label for label, value in required
+                     if value not in binary and value.decode("ascii").encode("utf-16le") not in binary]
+          if missing:
+              raise SystemExit("32-bit Future Remote binary validation failed; missing: " + ", ".join(missing))
+          print("Validated 32-bit Future Remote app identifier, server hostname and public key.")
+          '@ | Set-Content -Encoding utf8 "$env:RUNNER_TEMP\verify_future_x86.py"
+          python "$env:RUNNER_TEMP\verify_future_x86.py"
+          if ($LASTEXITCODE -ne 0) { throw "32-bit Future Remote binary verification failed" }
 
       - name: find Runner.res
         # Windows: find Runner.res (compiled from ./flutter/windows/runner/Runner.rc), copy to ./Runner.res
@@ -700,6 +861,15 @@ jobs:
           popd
           mkdir -p ./SignOutput
           mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-sciter.exe
+
+      - name: Upload Future Remote Windows x86 installer
+        if: env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: future-remote-windows-x86
+          path: ./SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-sciter.exe
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Sign rustdesk self-extracted file
         if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != '-2'
@@ -856,7 +1026,7 @@ jobs:
         job:
           - {
               target: x86_64-apple-darwin,
-              os: macos-15-intel, #macos-latest or macos-14 use M1 now, https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#:~:text=14%20GB-,macos%2Dlatest%20or%20macos%2D14,-The%20macos%2Dlatestlabel
+              os: macos-15-intel, # Use the Intel runner for the x86_64 slice; Apple Silicon uses macos-15.
               extra-build-args: "",
               extra-cargo-features: "",
               arch: x86_64,
@@ -864,7 +1034,7 @@ jobs:
             }
           - {
               target: aarch64-apple-darwin,
-              os: macos-14,
+              os: macos-15,
               # extra-build-args: "--disable-flutter-texture-render", # disable this for mac, because we see a lot of users reporting flickering both on arm and x64, and we can not confirm if texture rendering has better performance if htere is no vram, https://github.com/rustdesk/rustdesk/issues/6296
               extra-build-args: "--screencapturekit",
               extra-cargo-features: ",screencapturekit",
@@ -884,6 +1054,40 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Set up Python for macOS icon generation
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Apply Future Remote identity and macOS branding
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/configure_future_remote.py
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/futurespcbrasil-hash/spc-vision-boost/main/public/logo-future.png" \
+            --output "$RUNNER_TEMP/future-logo.png"
+          python3 -m pip install --disable-pip-version-check Pillow
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageOps
+          import os, shutil, subprocess
+          source = Image.open(Path(os.environ["RUNNER_TEMP"]) / "future-logo.png").convert("RGBA")
+          side = min(source.width, source.height)
+          mark = source.crop((0, 0, side, side))
+          square = Image.new("RGBA", (1024, 1024), (255, 255, 255, 0))
+          mark = ImageOps.contain(mark, (880, 880), method=Image.Resampling.LANCZOS)
+          square.alpha_composite(mark, ((1024-mark.width)//2, (1024-mark.height)//2))
+          iconset = Path("flutter/macos/Runner/FutureRemote.iconset")
+          if iconset.exists(): shutil.rmtree(iconset)
+          iconset.mkdir(parents=True)
+          sizes = [("icon_16x16.png",16),("icon_16x16@2x.png",32),("icon_32x32.png",32),("icon_32x32@2x.png",64),("icon_128x128.png",128),("icon_128x128@2x.png",256),("icon_256x256.png",256),("icon_256x256@2x.png",512),("icon_512x512.png",512),("icon_512x512@2x.png",1024)]
+          for name, size in sizes:
+              square.resize((size, size), Image.Resampling.LANCZOS).save(iconset / name)
+          subprocess.run(["iconutil", "-c", "icns", "-o", "flutter/macos/Runner/AppIcon.icns", str(iconset)], check=True)
+          shutil.rmtree(iconset)
+          print("Generated Future Soluções macOS app icon from SPC Vision CRM logo.")
+          PY
       - name: Import the codesign cert
         if: env.MACOS_P12_BASE64 != null
         uses: apple-actions/import-codesign-certs@253ddeeac23f2bdad1646faac5c8c2832e800071 # v1
@@ -970,6 +1174,10 @@ jobs:
         with:
           prefix-key: ${{ matrix.job.os }}
 
+      - name: Rebuild hbb_common with Future Remote identity
+        shell: bash
+        run: cargo clean -p hbb_common
+
       - name: Restore bridge files
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -1025,6 +1233,31 @@ jobs:
           fi
           ./build.py --flutter --hwcodec --unix-file-copy-paste ${{ matrix.job.extra-build-args }}
 
+      - name: Set Future Remote macOS display name
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_dir="flutter/build/macos/Build/Products/Release"
+          app="$release_dir/RustDesk.app"
+          test -d "$app"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'Future Remote'" "$app/Contents/Info.plist"
+          mv "$app" "$release_dir/Future Remote.app"
+
+      - name: Upload Future Remote macOS app bundle for universal packaging
+        if: env.UPLOAD_ARTIFACT == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -czf "future-remote-macos-${{ matrix.job.arch }}.tar.gz" -C flutter/build/macos/Build/Products/Release "Future Remote.app"
+
+      - name: Store Future Remote macOS app bundle
+        if: env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: future-remote-macos-${{ matrix.job.arch }}-app
+          path: future-remote-macos-${{ matrix.job.arch }}.tar.gz
+          if-no-files-found: error
+
       - name: Test verified updates
         if: env.PUBLISH_UPDATE_METADATA == 'true'
         run: |
@@ -1043,23 +1276,23 @@ jobs:
           # Opt-in, and its macOS tests run nowhere else.
           cargo test --locked --release -p clipboard --features unix-file-copy-paste
 
-      - name: create unsigned dmg
-        if: env.UPLOAD_ARTIFACT == 'true'
+      - name: "Skip unsigned DMG creation - universal installer only"
+        if: false
         run: |
           CREATE_DMG="$(command -v create-dmg)"
           CREATE_DMG="$(readlink -f "$CREATE_DMG")"
           sed -i -e 's/MAXIMUM_UNMOUNTING_ATTEMPTS=3/MAXIMUM_UNMOUNTING_ATTEMPTS=7/' "$CREATE_DMG"
-          create-dmg --icon "RustDesk.app" 200 190 --hide-extension "RustDesk.app" --window-size 800 400 --app-drop-link 600 185 rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg ./flutter/build/macos/Build/Products/Release/RustDesk.app
+          create-dmg --icon "Future Remote.app" 200 190 --hide-extension "Future Remote.app" --window-size 800 400 --app-drop-link 600 185 rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg "./flutter/build/macos/Build/Products/Release/Future Remote.app"
 
-      - name: Upload unsigned macOS app
-        if: env.UPLOAD_ARTIFACT == 'true'
+      - name: "Upload unsigned macOS app (disabled: universal installer only)"
+        if: false
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rustdesk-unsigned-macos-${{ matrix.job.arch }}
           path: rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg # can not upload the directory directly or tar.gz, which destroy the link structure, causing the codesign failed
 
-      - name: Codesign app and create signed dmg
-        if: env.MACOS_P12_BASE64 != null && env.UPLOAD_ARTIFACT == 'true'
+      - name: "Codesign app and create signed dmg (disabled: universal installer only)"
+        if: false
         run: |
           # Patch create-dmg to give more attempts to unmount image
           CREATE_DMG="$(command -v create-dmg)"
@@ -1072,23 +1305,23 @@ jobs:
           rm -rf *.dmg || true
           # the identity secret carries its own shell quoting, so expand it inline like the dmg codesign below
           bash ./.github/scripts/sign-macos-app.sh \
-            ./flutter/build/macos/Build/Products/Release/RustDesk.app \
+            "./flutter/build/macos/Build/Products/Release/Future Remote.app" \
             ${{ secrets.MACOS_CODESIGN_IDENTITY }} \
             ./flutter/macos/Runner/Release.entitlements
           if [ "$PUBLISH_UPDATE_METADATA" = "true" ]; then
-            reported_version="$(./flutter/build/macos/Build/Products/Release/RustDesk.app/Contents/MacOS/RustDesk --version)"
+            reported_version="$("./flutter/build/macos/Build/Products/Release/Future Remote.app/Contents/MacOS/RustDesk" --version)"
             if [ "$reported_version" != "$VERSION" ]; then
               echo "::error::RustDesk reports version '$reported_version', expected '$VERSION'"
               exit 1
             fi
           fi
-          create-dmg --icon "RustDesk.app" 200 190 --hide-extension "RustDesk.app" --window-size 800 400 --app-drop-link 600 185 rustdesk-${{ env.VERSION }}.dmg ./flutter/build/macos/Build/Products/Release/RustDesk.app
+          create-dmg --icon "Future Remote.app" 200 190 --hide-extension "Future Remote.app" --window-size 800 400 --app-drop-link 600 185 rustdesk-${{ env.VERSION }}.dmg "./flutter/build/macos/Build/Products/Release/Future Remote.app"
           codesign --force --options runtime -s ${{ secrets.MACOS_CODESIGN_IDENTITY }} --deep --strict rustdesk-${{ env.VERSION }}.dmg -vvv
           # notarize the rustdesk-${{ env.VERSION }}.dmg
           rcodesign notary-submit --api-key-path ${{ github.workspace }}/rustdesk.json  --staple rustdesk-${{ env.VERSION }}.dmg
 
-      - name: Rename rustdesk
-        if: env.UPLOAD_ARTIFACT == 'true'
+      - name: "Rename rustdesk (disabled: universal installer only)"
+        if: false
         shell: bash
         env:
           VERSION: ${{ env.VERSION }}
@@ -1099,16 +1332,16 @@ jobs:
           fi
           test -f "rustdesk-${VERSION}-${ARCH}.dmg"
 
-      - name: Upload signed macOS DMG
-        if: env.UPLOAD_ARTIFACT == 'true' && env.PUBLISH_UPDATE_METADATA == 'true' && env.MACOS_P12_BASE64 != null
+      - name: "Upload signed macOS DMG (disabled: universal installer only)"
+        if: false
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: macos-${{ matrix.job.arch }}-dmg
           path: ./rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg
           if-no-files-found: error
 
-      - name: Publish DMG package
-        if: env.UPLOAD_ARTIFACT == 'true' && env.PUBLISH_UPDATE_METADATA != 'true'
+      - name: "Publish DMG package (disabled: universal installer only)"
+        if: false
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
@@ -1116,6 +1349,115 @@ jobs:
           files: |
             rustdesk*-${{ matrix.job.arch }}.dmg
 
+  build-universal-macOS:
+    name: Build Future Remote universal macOS app
+    needs: [build-for-macOS]
+    runs-on: macos-15
+    if: ${{ inputs.upload-artifact }}
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Download Intel app bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: future-remote-macos-x86_64-app
+          path: ./intel
+
+      - name: Download Apple Silicon app bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: future-remote-macos-aarch64-app
+          path: ./apple-silicon
+
+      - name: Combine and validate universal app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ./intel-app ./arm-app
+          tar -xzf ./intel/future-remote-macos-x86_64.tar.gz -C ./intel-app
+          tar -xzf ./apple-silicon/future-remote-macos-aarch64.tar.gz -C ./arm-app
+          python3 scripts/merge_macos_universal.py \
+            "./intel-app/Future Remote.app" \
+            "./arm-app/Future Remote.app" \
+            "./Future Remote.app"
+
+      - name: Import the codesign cert
+        if: env.MACOS_P12_BASE64 != null
+        uses: apple-actions/import-codesign-certs@253ddeeac23f2bdad1646faac5c8c2832e800071 # v1
+        with:
+          p12-file-base64: ${{ secrets.MACOS_P12_BASE64 }}
+          p12-password: ${{ secrets.MACOS_P12_PASSWORD }}
+          keychain: rustdesk
+
+      - name: Import notarize key
+        if: env.MACOS_P12_BASE64 != null
+        uses: timheuer/base64-to-file@adaa40c0c581f276132199d4cf60afa07ce60eac # v1.2
+        with:
+          fileName: rustdesk.json
+          fileDir: ${{ github.workspace }}
+          encodedString: ${{ secrets.MACOS_NOTARIZE_JSON }}
+
+      - name: Install universal DMG tools
+        run: brew install create-dmg
+
+      - name: Install rcodesign tool
+        if: env.MACOS_P12_BASE64 != null
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp
+          curl --fail --location --silent --show-error \
+            "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-macos-universal.tar.gz" \
+            --output apple-codesign.tar.gz
+          tar -xzf apple-codesign.tar.gz
+          sudo mv apple-codesign-0.22.0-macos-universal/rcodesign /usr/local/bin/rcodesign
+
+      - name: Sign, package and notarize universal app
+        if: env.MACOS_P12_BASE64 != null
+        shell: bash
+        run: |
+          set -euo pipefail
+          security default-keychain -s rustdesk.keychain
+          security unlock-keychain -p ${{ secrets.MACOS_P12_PASSWORD }} rustdesk.keychain
+          bash ./.github/scripts/sign-macos-app.sh \
+            "./Future Remote.app" \
+            ${{ secrets.MACOS_CODESIGN_IDENTITY }} \
+            ./flutter/macos/Runner/Release.entitlements
+          ./Future\ Remote.app/Contents/MacOS/RustDesk --version
+          create-dmg --icon "Future Remote.app" 200 190 --hide-extension "Future Remote.app" --window-size 800 400 --app-drop-link 600 185 \
+            "future-remote-${{ env.VERSION }}-universal.dmg" "./Future Remote.app"
+          codesign --force --options runtime -s ${{ secrets.MACOS_CODESIGN_IDENTITY }} --deep --strict \
+            "future-remote-${{ env.VERSION }}-universal.dmg" -vvv
+          rcodesign notary-submit --api-key-path ${{ github.workspace }}/rustdesk.json --staple \
+            "future-remote-${{ env.VERSION }}-universal.dmg"
+
+      - name: Package unsigned universal app
+        if: env.MACOS_P12_BASE64 == null
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./Future\ Remote.app/Contents/MacOS/RustDesk --version
+          create-dmg --icon "Future Remote.app" 200 190 --hide-extension "Future Remote.app" --window-size 800 400 --app-drop-link 600 185 \
+            "future-remote-${{ env.VERSION }}-universal.dmg" "./Future Remote.app"
+
+      - name: Upload universal macOS DMG
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: future-remote-universal-macos
+          path: future-remote-${{ env.VERSION }}-universal.dmg
+          if-no-files-found: error
+
+      - name: Publish universal macOS DMG
+        if: env.UPLOAD_ARTIFACT == 'true' && env.PUBLISH_UPDATE_METADATA != 'true'
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        with:
+          prerelease: true
+          fail_on_unmatched_files: true
+          tag_name: ${{ env.TAG_NAME }}
+          files: future-remote-${{ env.VERSION }}-universal.dmg
   publish-signed-update-metadata:
     needs: [build-for-windows-flutter, build-for-windows-sciter, build-for-macOS]
     runs-on: ubuntu-22.04
@@ -2840,7 +3182,7 @@ jobs:
             flatpak/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.flatpak
 
   build-rustdesk-web:
-    if: False
+    if: false
     needs: [validate-update-metadata-keys]
     name: build-rustdesk-web
     runs-on: ubuntu-22.04

@@ -73,10 +73,24 @@ void showServerSettingsWithValue(
   const labelWidth = 120.0;
   const labelSpacing = 8.0;
   var isInProgress = false;
-  final idCtrl = TextEditingController(text: serverConfig.idServer);
-  final relayCtrl = TextEditingController(text: serverConfig.relayServer);
+  // Branded Future Remote builds must show the self-hosted server values even
+  // before the user opens/saves server settings. Keep custom values if present.
+  final useFutureRemoteDefaults = bind.isCustomClient();
+  final idCtrl = TextEditingController(
+      text: serverConfig.idServer.isNotEmpty
+          ? serverConfig.idServer
+          : (useFutureRemoteDefaults ? 'future-remote.duckdns.org' : ''));
+  final relayCtrl = TextEditingController(
+      text: serverConfig.relayServer.isNotEmpty
+          ? serverConfig.relayServer
+          : (useFutureRemoteDefaults ? 'future-remote.duckdns.org:21117' : ''));
   final apiCtrl = TextEditingController(text: serverConfig.apiServer);
-  final keyCtrl = TextEditingController(text: serverConfig.key);
+  final keyCtrl = TextEditingController(
+      text: serverConfig.key.isNotEmpty
+          ? serverConfig.key
+          : (useFutureRemoteDefaults
+              ? 'NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8='
+              : ''));
 
   RxString idServerMsg = ''.obs;
   RxString relayServerMsg = ''.obs;
