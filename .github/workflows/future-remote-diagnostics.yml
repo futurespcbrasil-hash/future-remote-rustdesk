@@ -21,6 +21,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           ref: future-remote-bootstrap
+          submodules: recursive
           persist-credentials: false
       - name: Verify Future Remote configuration
         run: |
