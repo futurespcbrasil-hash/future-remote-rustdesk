@@ -2,10 +2,8 @@ name: Future Remote - build installers and Flutter CI
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths-ignore:
-      - "docs/**"
-      - "README.md"
+  # The full multi-platform build is run on branch pushes and manual dispatch.
+  # Pull-request builds are covered by the lightweight CI and preflight workflows.
   push:
     branches:
       - master
