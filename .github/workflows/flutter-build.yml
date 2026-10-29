@@ -1263,7 +1263,7 @@ jobs:
           # Opt-in, and its macOS tests run nowhere else.
           cargo test --locked --release -p clipboard --features unix-file-copy-paste
 
-      - name: create unsigned dmg (disabled: universal installer only)
+      - name: "create unsigned dmg (disabled: universal installer only)"
         if: false
         run: |
           CREATE_DMG="$(command -v create-dmg)"
@@ -1271,14 +1271,14 @@ jobs:
           sed -i -e 's/MAXIMUM_UNMOUNTING_ATTEMPTS=3/MAXIMUM_UNMOUNTING_ATTEMPTS=7/' "$CREATE_DMG"
           create-dmg --icon "Future Remote.app" 200 190 --hide-extension "Future Remote.app" --window-size 800 400 --app-drop-link 600 185 rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg "./flutter/build/macos/Build/Products/Release/Future Remote.app"
 
-      - name: Upload unsigned macOS app (disabled: universal installer only)
+      - name: "Upload unsigned macOS app (disabled: universal installer only)"
         if: false
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rustdesk-unsigned-macos-${{ matrix.job.arch }}
           path: rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg # can not upload the directory directly or tar.gz, which destroy the link structure, causing the codesign failed
 
-      - name: Codesign app and create signed dmg (disabled: universal installer only)
+      - name: "Codesign app and create signed dmg (disabled: universal installer only)"
         if: false
         run: |
           # Patch create-dmg to give more attempts to unmount image
