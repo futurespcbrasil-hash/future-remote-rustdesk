@@ -1,0 +1,33 @@
+name: Future Remote - Actions diagnostic
+
+on:
+  push:
+    branches:
+      - future-remote-bootstrap
+    paths:
+      - ".github/workflows/future-remote-diagnostics.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workflow-admission-smoke-test:
+    name: Validate basic Actions runner and repository access
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: future-remote-bootstrap
+          persist-credentials: false
+      - name: Verify Future Remote configuration
+        run: |
+          python3 --version
+          python3 scripts/configure_future_remote.py
+      - name: Validate build workflow files exist
+        run: |
+          test -s .github/workflows/flutter-ci.yml
+          test -s .github/workflows/flutter-build.yml
+          echo "Diagnostic passed. The basic runner, checkout, and configuration script work."
