@@ -1,0 +1,65 @@
+name: Future Remote - preflight validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".gitmodules"
+      - "libs/hbb_common"
+      - "docs/FUTURE-REMOTE-SETUP.md"
+      - ".github/workflows/future-remote-preflight.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Validate source, submodule and Future logo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork with pinned submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Validate pinned hbb_common submodule
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f libs/hbb_common/src/config.rs
+          actual="$(git submodule status libs/hbb_common | awk '{print $1}' | sed 's/^-//; s/^+//')"
+          expected="$(git ls-tree HEAD libs/hbb_common | awk '{print $3}')"
+          echo "Pinned hbb_common: $expected"
+          echo "Checked out hbb_common: $actual"
+          test "$actual" = "$expected"
+          grep -F 'pub const RENDEZVOUS_SERVERS:' libs/hbb_common/src/config.rs
+          grep -F 'pub const RS_PUB_KEY:' libs/hbb_common/src/config.rs
+
+      - name: Validate Future server constants without changing source
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'future-remote.duckdns.org' docs/FUTURE-REMOTE-SETUP.md
+          grep -F 'NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8=' docs/FUTURE-REMOTE-SETUP.md
+          echo "Preflight only: no source constants or VPS settings were modified."
+
+      - name: Fetch Future logo from SPC Vision repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p future-brand-assets
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/futurespcbrasil-hash/spc-vision-boost/main/public/logo-future.png" \
+            --output future-brand-assets/logo-future.png
+          file future-brand-assets/logo-future.png
+          test -s future-brand-assets/logo-future.png
+          file future-brand-assets/logo-future.png | grep -E 'PNG image data'
+
+      - name: Upload validated logo as temporary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: future-remote-brand-assets-preflight
+          path: future-brand-assets/logo-future.png
+          if-no-files-found: error
+          retention-days: 7
