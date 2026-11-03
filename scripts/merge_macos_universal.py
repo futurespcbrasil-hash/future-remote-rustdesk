@@ -13,10 +13,14 @@ from pathlib import Path
 HOST = b"future-remote.duckdns.org"
 PUBLIC_KEY = b"NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8="
 
+
 def run(args: list[str], *, capture: bool = False) -> str:
-    result = subprocess.run(args, check=True, text=True,
-                            stdout=subprocess.PIPE if capture else None)
+    result = subprocess.run(
+        args, check=True, text=True,
+        stdout=subprocess.PIPE if capture else None,
+    )
     return result.stdout.strip() if capture else ""
+
 
 def inventory(root: Path) -> tuple[set[str], set[str]]:
     files: set[str] = set()
@@ -38,27 +42,55 @@ def inventory(root: Path) -> tuple[set[str], set[str]]:
                 files.add(rel)
     return files, links
 
+
 def lipo_arches(path: Path) -> set[str] | None:
-    result = subprocess.run(["lipo", "-archs", str(path)], text=True,
-                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    result = subprocess.run(
+        ["lipo", "-archs", str(path)], text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+    )
     if result.returncode:
         return None
     return set(result.stdout.split())
 
+
+def copy_entry(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if source.is_symlink():
+        destination.symlink_to(os.readlink(source))
+    else:
+        shutil.copy2(source, destination, follow_symlinks=False)
+
+
 def merge(intel: Path, arm: Path, output: Path) -> int:
     if not intel.is_dir() or not arm.is_dir():
         raise SystemExit("Expected both Future Remote.app architecture bundles.")
+    if output.exists():
+        raise SystemExit(f"Output app bundle already exists: {output}")
+
     intel_files, intel_links = inventory(intel)
     arm_files, arm_links = inventory(arm)
-    if intel_files != arm_files:
-        missing_arm = sorted(intel_files - arm_files)
-        missing_intel = sorted(arm_files - intel_files)
-        raise SystemExit(f"App bundle file layouts differ; missing from ARM={missing_arm}, missing from Intel={missing_intel}")
-    if intel_links != arm_links:
-        raise SystemExit("App bundle symlink layouts differ between Intel and Apple Silicon builds.")
+    if (intel_files & arm_links) or (arm_files & intel_links):
+        raise SystemExit("A bundle path is a file in one architecture and a symlink in the other.")
+    for rel in intel_links & arm_links:
+        if os.readlink(intel / rel) != os.readlink(arm / rel):
+            raise SystemExit(f"App bundle symlink target differs between architectures: {rel}")
+
+    # Start with the ARM bundle, then add Intel-only files (notably Xcode's
+    # x86_64 Swift runtime dylibs) instead of requiring identical file layouts.
     shutil.copytree(arm, output, symlinks=True)
+    for rel in sorted(intel_links - arm_links):
+        copy_entry(intel / rel, output / rel)
+    for rel in sorted(intel_files - arm_files):
+        source = intel / rel
+        arches = lipo_arches(source)
+        if arches is not None and "x86_64" not in arches:
+            raise SystemExit(f"Intel-only Mach-O file lacks x86_64 slice: {rel} ({sorted(arches)})")
+        copy_entry(source, output / rel)
+
     binaries: list[str] = []
-    for rel in sorted(intel_files):
+    intel_only = sorted(intel_files - arm_files)
+    arm_only = sorted(arm_files - intel_files)
+    for rel in sorted(intel_files & arm_files):
         intel_file, arm_file = intel / rel, arm / rel
         intel_arches, arm_arches = lipo_arches(intel_file), lipo_arches(arm_file)
         if intel_arches is None and arm_arches is None:
@@ -66,7 +98,11 @@ def merge(intel: Path, arm: Path, output: Path) -> int:
         if intel_arches is None or arm_arches is None:
             raise SystemExit(f"Mach-O mismatch between architecture builds: {rel}")
         if "x86_64" not in intel_arches or "arm64" not in arm_arches:
-            raise SystemExit(f"Wrong architecture slices for {rel}: Intel={sorted(intel_arches)}, ARM={sorted(arm_arches)}")
+            raise SystemExit(
+                f"Wrong architecture slices for {rel}: "
+                f"Intel={sorted(intel_arches)}, ARM={sorted(arm_arches)}"
+            )
+
         destination = output / rel
         with tempfile.TemporaryDirectory(dir=destination.parent) as temp_dir:
             temp = Path(temp_dir)
@@ -80,34 +116,55 @@ def merge(intel: Path, arm: Path, output: Path) -> int:
         if not {"x86_64", "arm64"}.issubset(merged_arches):
             raise SystemExit(f"Universal merge verification failed for {rel}: {sorted(merged_arches)}")
         binaries.append(rel)
+
+    # Keep architecture-specific Mach-O dependencies as thin binaries. dyld
+    # selects the matching slice of the main executable and only loads the
+    # dependencies used by that architecture.
+    for rel in intel_only:
+        if lipo_arches(intel / rel) is not None:
+            binaries.append(rel)
+    for rel in arm_only:
+        if lipo_arches(arm / rel) is not None:
+            binaries.append(rel)
+
     if not binaries:
         raise SystemExit("No Mach-O binaries were found in the macOS app bundle.")
-    # lipo invalidates the old code signatures; a later CI step signs the complete bundle again.
+
+    # lipo invalidates the old code signatures; sign the complete bundle again later.
     for signature in sorted(output.rglob("_CodeSignature"), key=lambda p: len(p.parts), reverse=True):
         if signature.is_dir():
             shutil.rmtree(signature, ignore_errors=True)
     for sealed in output.rglob("CodeResources"):
         if sealed.is_file() or sealed.is_symlink():
             sealed.unlink(missing_ok=True)
+
     info_path = output / "Contents/Info.plist"
     with info_path.open("rb") as stream:
         metadata = plistlib.load(stream)
     if metadata.get("CFBundleName") != "Future Remote" or metadata.get("CFBundleDisplayName") != "Future Remote":
         raise SystemExit("Future Remote display-name metadata is missing from the universal app.")
+
     executable = output / "Contents/MacOS" / metadata.get("CFBundleExecutable", "RustDesk")
     executable_arches = lipo_arches(executable) if executable.is_file() else None
     if not executable_arches or not {"x86_64", "arm64"}.issubset(executable_arches):
         raise SystemExit("The Future Remote app executable is not universal.")
-    haystack = b"".join(path.read_bytes() for rel in binaries for path in [output / rel])
+
+    haystack = b"".join((output / rel).read_bytes() for rel in binaries)
     for label, needle in (("server hostname", HOST), ("public key", PUBLIC_KEY)):
         if needle not in haystack and needle.decode("ascii").encode("utf-16le") not in haystack:
             raise SystemExit(f"Future Remote universal binary is missing the configured {label}.")
+
     icon = output / "Contents/Resources/AppIcon.icns"
     if not icon.is_file() or icon.stat().st_size == 0:
         raise SystemExit("Future Soluções app icon is missing from the universal app.")
-    print(f"Validated Future Remote universal app: {len(binaries)} Mach-O files contain x86_64 and arm64 slices.")
+
+    print(
+        f"Validated Future Remote universal app: {len(binaries)} Mach-O files; "
+        f"{len(intel_only)} Intel-only and {len(arm_only)} Apple-Silicon-only bundle files preserved."
+    )
     print("Validated Future Remote display name, configured server, public key and app icon.")
     return len(binaries)
+
 
 def main() -> int:
     if len(sys.argv) != 4:
@@ -115,6 +172,7 @@ def main() -> int:
         return 2
     merge(Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]))
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
