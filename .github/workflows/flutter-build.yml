@@ -204,6 +204,8 @@ jobs:
           $logoUrl = "https://raw.githubusercontent.com/futurespcbrasil-hash/spc-vision-boost/main/public/logo-future.png"
           Invoke-WebRequest -Uri $logoUrl -OutFile "$env:RUNNER_TEMP\future-logo.png"
           python -m pip install --disable-pip-version-check Pillow
+          python scripts/prepare_future_branding.py "$env:RUNNER_TEMP\\future-logo.png"
+          if ($LASTEXITCODE -ne 0) { throw "Future Remote app logo preparation failed" }
           @'
           from PIL import Image, ImageOps
           from pathlib import Path
@@ -1077,6 +1079,7 @@ jobs:
             "https://raw.githubusercontent.com/futurespcbrasil-hash/spc-vision-boost/main/public/logo-future.png" \
             --output "$RUNNER_TEMP/future-logo.png"
           python3 -m pip install --disable-pip-version-check Pillow
+          python3 scripts/prepare_future_branding.py "$RUNNER_TEMP/future-logo.png"
           python3 - <<'PY'
           from pathlib import Path
           from PIL import Image, ImageOps
@@ -1241,6 +1244,36 @@ jobs:
             echo "MACOSX_DEPLOYMENT_TARGET=${MIN_MACOS_VERSION}" >> "$GITHUB_ENV"
           fi
           ./build.py --flutter --hwcodec --unix-file-copy-paste ${{ matrix.job.extra-build-args }}
+
+      - name: Verify Future Remote server configuration in macOS binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="flutter/build/macos/Build/Products/Release/RustDesk.app"
+          test -d "$app"
+          python3 - "$app" <<'PY'
+          from pathlib import Path
+          import sys
+
+          root = Path(sys.argv[1]) / "Contents"
+          files = [p for p in root.rglob("*") if p.is_file()]
+          required = [
+              ("Future-Remote application identifier", b"Future-Remote"),
+              ("Future Remote rendezvous hostname", b"future-remote.duckdns.org"),
+              ("public rendezvous key", b"NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8="),
+          ]
+          blobs = []
+          for path in files:
+              try:
+                  blobs.append(path.read_bytes())
+              except OSError:
+                  continue
+          missing = [label for label, needle in required
+                     if not any(needle in blob for blob in blobs)]
+          if missing:
+              raise SystemExit("macOS Future Remote validation failed; missing: " + ", ".join(missing))
+          print("Validated Future Remote app identifier, rendezvous hostname and public key in macOS app bundle.")
+          PY
 
       - name: Set Future Remote macOS display name
         shell: bash
