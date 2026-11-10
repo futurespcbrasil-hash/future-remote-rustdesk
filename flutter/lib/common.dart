@@ -3755,8 +3755,8 @@ Widget loadPowered(BuildContext context) {
 }
 
 const _kDefaultLogoAsset = 'assets/logo.png';
-const _kLightLogoAsset = 'assets/future-logo-light.svg';
-const _kDarkLogoAsset = 'assets/future-logo-dark.svg';
+const _kLightLogoAsset = 'assets/future-logo-light.png';
+const _kDarkLogoAsset = 'assets/future-logo-dark.png';
 
 List<String> _logoAssetCandidatesForBrightness(Brightness brightness) {
   return brightness == Brightness.dark
