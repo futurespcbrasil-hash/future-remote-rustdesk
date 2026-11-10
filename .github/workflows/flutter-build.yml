@@ -577,7 +577,7 @@ jobs:
           python preprocess.py --arp -d "../../rustdesk-msi-dist" --app-name "Future-Remote" --display-name "Future Remote" --manufacturer "Future Soluções"
           if ($LASTEXITCODE -ne 0) { throw "Future Remote MSI preprocessing failed" }
           if (-not (Test-Path "../../rustdesk-msi-dist/Future-Remote.exe")) { throw "Branded Future Remote executable is missing from MSI staging directory" }
-          $wxsText = (Get-ChildItem ./Package -Recurse -Filter *.wxs | ForEach-Object { Get-Content $_.FullName -Raw }) -join "`n"
+          $wxsText = (Get-Content ./Package/Includes.wxi -Raw) + "`n" + ((Get-ChildItem ./Package -Recurse -Filter *.wxs | ForEach-Object { Get-Content $_.FullName -Raw }) -join "`n")
           if ($wxsText -notmatch 'Product="Future-Remote"' -or $wxsText -notmatch 'DisplayProduct="Future Remote"' -or $wxsText -notmatch 'Manufacturer="Future Soluções"') {
             throw "Generated MSI metadata is not branded as Future Remote / Future Soluções"
           }
