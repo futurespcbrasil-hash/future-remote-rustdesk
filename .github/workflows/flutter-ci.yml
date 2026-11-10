@@ -12,7 +12,6 @@ on:
     paths-ignore:
       - "docs/**"
       - "README.md"
-      - "res/**"
       - "appimage/**"
       - "flatpak/**"
 
