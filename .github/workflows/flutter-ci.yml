@@ -8,6 +8,7 @@ on:
     branches:
       - master
       - future-remote-bootstrap
+      - test/local-build-windows
     paths-ignore:
       - "docs/**"
       - "README.md"
