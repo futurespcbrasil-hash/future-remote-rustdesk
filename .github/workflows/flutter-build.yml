@@ -191,14 +191,12 @@ jobs:
           submodules: recursive
 
       - name: Apply Future Remote identity and server settings
-        if: ${{ matrix.job.target == 'x86_64-pc-windows-msvc' }}
         shell: pwsh
         run: |
           python scripts/configure_future_remote.py
           if ($LASTEXITCODE -ne 0) { throw "Future Remote configuration failed" }
 
       - name: Apply Future Remote Windows branding
-        if: ${{ matrix.job.target == 'x86_64-pc-windows-msvc' }}
         shell: pwsh
         run: |
           $logoUrl = "https://raw.githubusercontent.com/futurespcbrasil-hash/spc-vision-boost/main/public/logo-future.png"
@@ -376,7 +374,6 @@ jobs:
           mv ./flutter/build/windows/${{ matrix.job.flutter-arch }}/runner/Release ./rustdesk
 
       - name: Verify Future Remote server configuration in Windows binary
-        if: ${{ matrix.job.target == 'x86_64-pc-windows-msvc' }}
         shell: pwsh
         run: |
           @'
