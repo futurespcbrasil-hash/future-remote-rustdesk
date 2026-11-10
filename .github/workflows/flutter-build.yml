@@ -204,7 +204,7 @@ jobs:
           $logoUrl = "https://raw.githubusercontent.com/futurespcbrasil-hash/spc-vision-boost/main/public/logo-future.png"
           Invoke-WebRequest -Uri $logoUrl -OutFile "$env:RUNNER_TEMP\future-logo.png"
           python -m pip install --disable-pip-version-check Pillow
-          python scripts/prepare_future_branding.py "$env:RUNNER_TEMP\\future-logo.png"
+          python scripts/prepare_future_branding.py "$env:RUNNER_TEMP\future-logo.png"
           if ($LASTEXITCODE -ne 0) { throw "Future Remote app logo preparation failed" }
           @'
           from PIL import Image, ImageOps
@@ -568,7 +568,13 @@ jobs:
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
           pushd ./res/msi
-          python preprocess.py --arp -d ../../rustdesk
+          # Build the MSI from a branded copy so the installed product and executable
+          # are named Future Remote without changing the portable EXE artifact.
+          Remove-Item -Recurse -Force ../../rustdesk-msi-dist -ErrorAction SilentlyContinue
+          Copy-Item ../../rustdesk ../../rustdesk-msi-dist -Recurse
+          Rename-Item ../../rustdesk-msi-dist/rustdesk.exe "Future Remote.exe"
+          python preprocess.py --arp -d "../../rustdesk-msi-dist" --app-name "Future Remote" --manufacturer "Future Soluções"
+          if ($LASTEXITCODE -ne 0) { throw "Future Remote MSI preprocessing failed" }
           nuget restore msi.sln
           $msiPlatform = if ('${{ matrix.job.arch }}' -eq 'aarch64') { 'ARM64' } else { 'x64' }
           msbuild msi.sln -p:Configuration=Release -p:Platform=$msiPlatform /p:TargetVersion=Windows10
@@ -1098,7 +1104,7 @@ jobs:
               square.resize((size, size), Image.Resampling.LANCZOS).save(iconset / name)
           subprocess.run(["iconutil", "-c", "icns", "-o", "flutter/macos/Runner/AppIcon.icns", str(iconset)], check=True)
           shutil.rmtree(iconset)
-          print("Generated Future Soluções macOS app icon from SPC Vision CRM logo.")
+          print("Generated Future Soluções macOS app icon from the official PNG.")
           PY
       - name: Import the codesign cert
         if: env.MACOS_P12_BASE64 != null
