@@ -3,7 +3,7 @@
 from pathlib import Path
 import sys
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 def main() -> int:
     if len(sys.argv) != 2:
@@ -29,6 +29,15 @@ def main() -> int:
     light_path = assets / "future-logo-light.png"
     source.save(light_path, format="PNG", optimize=True)
 
+    # The app's compact icon uses the official shield mark from the left of the logo.
+    side = min(source.width, source.height)
+    mark = source.crop((0, 0, side, side))
+    icon_canvas = Image.new("RGBA", (512, 512), (255, 255, 255, 0))
+    mark = ImageOps.contain(mark, (440, 440), method=Image.Resampling.LANCZOS)
+    icon_canvas.alpha_composite(mark, ((512 - mark.width) // 2, (512 - mark.height) // 2))
+    icon_path = assets / "icon.png"
+    icon_canvas.save(icon_path, format="PNG", optimize=True)
+
     # Keep the original shield and yellow accent intact. Only recolor the dark
     # wordmark on the right so the official logo remains readable in dark mode.
     dark = source.copy()
@@ -46,7 +55,7 @@ def main() -> int:
     dark_path = assets / "future-logo-dark.png"
     dark.save(dark_path, format="PNG", optimize=True)
 
-    for path in (light_path, dark_path):
+    for path in (light_path, dark_path, icon_path):
         if not path.is_file() or path.stat().st_size < 1000:
             print(f"Future logo asset validation failed: {path}", file=sys.stderr)
             return 4
