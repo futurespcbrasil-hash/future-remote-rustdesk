@@ -588,12 +588,12 @@ jobs:
         if: env.UPLOAD_ARTIFACT == 'true' && matrix.job.arch == 'x86_64'
         shell: pwsh
         run: |
-          $msiPath = (Resolve-Path ".\\SignOutput\\rustdesk-$env:VERSION-x86_64.msi").Path
+          $msiPath = (Resolve-Path ".\SignOutput\rustdesk-$env:VERSION-x86_64.msi").Path
           $install = Start-Process -FilePath msiexec.exe -ArgumentList @("/i", "`"$msiPath`"", "/qn", "/norestart") -Wait -PassThru
           if ($install.ExitCode -notin @(0, 3010)) {
             throw "Future Remote MSI installation failed with exit code $($install.ExitCode)"
           }
-          $installedExe = Join-Path $env:ProgramFiles "Future-Remote\\Future-Remote.exe"
+          $installedExe = Join-Path $env:ProgramFiles "Future-Remote\Future-Remote.exe"
           if (-not (Test-Path -LiteralPath $installedExe)) {
             throw "Future Remote executable was not installed at the expected path: $installedExe"
           }
