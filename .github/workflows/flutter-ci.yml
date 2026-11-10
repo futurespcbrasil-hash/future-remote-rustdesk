@@ -29,7 +29,7 @@ jobs:
       upload-artifact: true
 
   verify-future-remote-installers:
-    name: Verify Windows x64, Windows x86 and universal macOS artifacts
+    name: Verify Windows x64 EXE/MSI, Windows x86 and universal macOS artifacts
     needs: [run-ci]
     if: ${{ success() }}
     runs-on: ubuntu-24.04
@@ -93,5 +93,5 @@ jobs:
               print(f"PASS: {label}: {path.name} ({size:,} bytes)")
           if failed:
               sys.exit(1)
-          print("All three expected Future Remote installer artifacts are present and pass basic file checks.")
+          print("All four expected Future Remote installer artifacts are present and pass basic file checks.")
           PY
