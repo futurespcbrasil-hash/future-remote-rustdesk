@@ -81,7 +81,10 @@ def make_parser():
         help='Connection type, e.g. "incoming", "outgoing". Default is empty, means incoming-outgoing',
     )
     parser.add_argument(
-        "--app-name", type=str, default="RustDesk", help="The app name."
+        "--app-name", type=str, default="RustDesk", help="Internal app/executable/service name."
+    )
+    parser.add_argument(
+        "--display-name", type=str, default="", help="User-facing product name shown by the installer."
     )
     parser.add_argument(
         "-v", "--version", type=str, default="", help="The app version."
@@ -246,11 +249,13 @@ def gen_pre_vars(args, dist_dir):
         upgrade_code = uuid.uuid5(uuid.NAMESPACE_OID, app_name + ".exe")
 
         indent = g_indent_unit * 1
+        display_name = args.display_name or args.app_name
         to_insert_lines = [
             f'{indent}<?define Version="{g_version}" ?>\n',
             f'{indent}<?define Manufacturer="{args.manufacturer}" ?>\n',
             f'{indent}<?define Product="{args.app_name}" ?>\n',
-            f'{indent}<?define Description="{args.app_name} Installer" ?>\n',
+            f'{indent}<?define DisplayProduct="{display_name}" ?>\n',
+            f'{indent}<?define Description="{display_name} Installer" ?>\n',
             f'{indent}<?define ProductLower="{args.app_name.lower()}" ?>\n',
             f'{indent}<?define RegKeyRoot=".$(var.ProductLower)" ?>\n',
             f'{indent}<?define RegKeyInstall="$(var.RegKeyRoot)\\Install" ?>\n',
@@ -540,7 +545,8 @@ if __name__ == "__main__":
     if not init_global_vars(dist_dir, app_name, args):
         sys.exit(-1)
 
-    update_license_file(app_name)
+    display_name = args.display_name or app_name
+    update_license_file(display_name)
 
     if not gen_pre_vars(args, dist_dir):
         sys.exit(-1)
@@ -569,4 +575,4 @@ if __name__ == "__main__":
     if not gen_custom_dialog_bitmaps():
         sys.exit(-1)
 
-    replace_app_name_in_langs(args.app_name)
+    replace_app_name_in_langs(display_name)
