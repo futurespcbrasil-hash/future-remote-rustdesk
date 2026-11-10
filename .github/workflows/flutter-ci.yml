@@ -15,6 +15,12 @@ on:
       - "appimage/**"
       - "flatpak/**"
 
+# Keep only the newest installer build for this branch. Each commit used to
+# enqueue the entire multi-platform RustDesk matrix, leaving many stale runs queued.
+concurrency:
+  group: future-remote-installers-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
