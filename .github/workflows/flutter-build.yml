@@ -571,7 +571,8 @@ jobs:
           # Build the MSI from a branded copy so the installed product and executable
           # are named Future Remote without changing the portable EXE artifact.
           Remove-Item -Recurse -Force ../../rustdesk-msi-dist -ErrorAction SilentlyContinue
-          Copy-Item ../../rustdesk ../../rustdesk-msi-dist -Recurse
+          New-Item -ItemType Directory -Path ../../rustdesk-msi-dist -Force | Out-Null
+          Copy-Item ../../rustdesk/* ../../rustdesk-msi-dist -Recurse -Force
           Rename-Item ../../rustdesk-msi-dist/rustdesk.exe "Future Remote.exe"
           python preprocess.py --arp -d "../../rustdesk-msi-dist" --app-name "Future Remote" --manufacturer "Future Soluções"
           if ($LASTEXITCODE -ne 0) { throw "Future Remote MSI preprocessing failed" }
