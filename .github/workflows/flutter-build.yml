@@ -573,12 +573,12 @@ jobs:
           Remove-Item -Recurse -Force ../../rustdesk-msi-dist -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Path ../../rustdesk-msi-dist -Force | Out-Null
           Copy-Item ../../rustdesk/* ../../rustdesk-msi-dist -Recurse -Force
-          Rename-Item ../../rustdesk-msi-dist/rustdesk.exe "Future Remote.exe"
-          python preprocess.py --arp -d "../../rustdesk-msi-dist" --app-name "Future Remote" --manufacturer "Future Soluções"
+          Rename-Item ../../rustdesk-msi-dist/rustdesk.exe "Future-Remote.exe"
+          python preprocess.py --arp -d "../../rustdesk-msi-dist" --app-name "Future-Remote" --display-name "Future Remote" --manufacturer "Future Soluções"
           if ($LASTEXITCODE -ne 0) { throw "Future Remote MSI preprocessing failed" }
-          if (-not (Test-Path "../../rustdesk-msi-dist/Future Remote.exe")) { throw "Branded Future Remote executable is missing from MSI staging directory" }
+          if (-not (Test-Path "../../rustdesk-msi-dist/Future-Remote.exe")) { throw "Branded Future Remote executable is missing from MSI staging directory" }
           $wxsText = (Get-ChildItem ./Package -Recurse -Filter *.wxs | ForEach-Object { Get-Content $_.FullName -Raw }) -join "`n"
-          if ($wxsText -notmatch 'Product="Future Remote"' -or $wxsText -notmatch 'Manufacturer="Future Soluções"') {
+          if ($wxsText -notmatch 'Product="Future-Remote"' -or $wxsText -notmatch 'DisplayProduct="Future Remote"' -or $wxsText -notmatch 'Manufacturer="Future Soluções"') {
             throw "Generated MSI metadata is not branded as Future Remote / Future Soluções"
           }
           nuget restore msi.sln
