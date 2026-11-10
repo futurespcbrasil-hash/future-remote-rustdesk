@@ -575,6 +575,11 @@ jobs:
           Rename-Item ../../rustdesk-msi-dist/rustdesk.exe "Future Remote.exe"
           python preprocess.py --arp -d "../../rustdesk-msi-dist" --app-name "Future Remote" --manufacturer "Future Soluções"
           if ($LASTEXITCODE -ne 0) { throw "Future Remote MSI preprocessing failed" }
+          if (-not (Test-Path "../../rustdesk-msi-dist/Future Remote.exe")) { throw "Branded Future Remote executable is missing from MSI staging directory" }
+          $wxsText = (Get-ChildItem ./Package -Recurse -Filter *.wxs | ForEach-Object { Get-Content $_.FullName -Raw }) -join "`n"
+          if ($wxsText -notmatch 'Product="Future Remote"' -or $wxsText -notmatch 'Manufacturer="Future Soluções"') {
+            throw "Generated MSI metadata is not branded as Future Remote / Future Soluções"
+          }
           nuget restore msi.sln
           $msiPlatform = if ('${{ matrix.job.arch }}' -eq 'aarch64') { 'ARM64' } else { 'x64' }
           msbuild msi.sln -p:Configuration=Release -p:Platform=$msiPlatform /p:TargetVersion=Windows10
