@@ -584,6 +584,35 @@ jobs:
           mv $msi.FullName ../../SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.msi
           sha256sum ../../SignOutput/rustdesk-*.msi
 
+      - name: Smoke-test Future Remote x64 MSI installation and removal
+        if: env.UPLOAD_ARTIFACT == 'true' && matrix.job.arch == 'x86_64'
+        shell: pwsh
+        run: |
+          $msiPath = (Resolve-Path ".\\SignOutput\\rustdesk-$env:VERSION-x86_64.msi").Path
+          $install = Start-Process -FilePath msiexec.exe -ArgumentList @("/i", "`"$msiPath`"", "/qn", "/norestart") -Wait -PassThru
+          if ($install.ExitCode -notin @(0, 3010)) {
+            throw "Future Remote MSI installation failed with exit code $($install.ExitCode)"
+          }
+          $installedExe = Join-Path $env:ProgramFiles "Future-Remote\\Future-Remote.exe"
+          if (-not (Test-Path -LiteralPath $installedExe)) {
+            throw "Future Remote executable was not installed at the expected path: $installedExe"
+          }
+          $service = Get-Service -Name "Future-Remote" -ErrorAction SilentlyContinue
+          if ($null -eq $service) {
+            throw "Future Remote Windows service was not registered by the MSI."
+          }
+          $uninstall = Start-Process -FilePath msiexec.exe -ArgumentList @("/x", "`"$msiPath`"", "/qn", "/norestart") -Wait -PassThru
+          if ($uninstall.ExitCode -notin @(0, 3010)) {
+            throw "Future Remote MSI removal failed with exit code $($uninstall.ExitCode)"
+          }
+          if (Test-Path -LiteralPath $installedExe) {
+            throw "Future Remote executable remains after MSI removal."
+          }
+          if (Get-Service -Name "Future-Remote" -ErrorAction SilentlyContinue) {
+            throw "Future Remote service remains registered after MSI removal."
+          }
+          Write-Host "PASS: Future Remote x64 MSI installed, registered its service, and uninstalled cleanly."
+
       - name: Upload Future Remote Windows x64 MSI for testing
         if: env.UPLOAD_ARTIFACT == 'true' && matrix.job.arch == 'x86_64'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
