@@ -87,7 +87,7 @@ Patch dialog sequence:
             <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg" />
             <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg" />
 
-            <Property Id="ARPNOMODIFY" Value="1" />
+            <!-- Keep Windows Installer maintenance available from Apps & Features. -->
         </UI>
 
         <UIRef Id="WixUI_Common" />
