@@ -577,6 +577,15 @@ jobs:
           if ($wxsText -notmatch 'Product="Future-Remote"' -or $wxsText -notmatch 'DisplayProduct="Future Remote"' -or $wxsText -notmatch 'Manufacturer="Future Soluções"') {
             throw "Generated MSI metadata is not branded as Future Remote / Future Soluções"
           }
+          # Regression guard for Windows Installer error 2866: ErrorAbort is valid only on error dialogs.
+          $anotherAppUi = Get-Content ./Package/UI/AnotherApp.wxs -Raw
+          if ($anotherAppUi -match 'Event="EndDialog"\s+Value="ErrorAbort"') {
+            throw "UI_AnotherAppDialog uses ErrorAbort on a regular dialog; this causes MSI error 2866."
+          }
+          if ($anotherAppUi -notmatch 'Event="EndDialog"\s+Value="Exit"') {
+            throw "UI_AnotherAppDialog must close the installer with the regular EndDialog Exit argument."
+          }
+          Write-Host "PASS: MSI blocker dialog uses a valid regular EndDialog return argument."
           nuget restore msi.sln
           $msiPlatform = if ('${{ matrix.job.arch }}' -eq 'aarch64') { 'ARM64' } else { 'x64' }
           msbuild msi.sln -p:Configuration=Release -p:Platform=$msiPlatform /p:TargetVersion=Windows10
