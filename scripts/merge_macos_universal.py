@@ -50,15 +50,33 @@ def merge(intel: Path, arm: Path, output: Path) -> int:
         raise SystemExit("Expected both Future Remote.app architecture bundles.")
     intel_files, intel_links = inventory(intel)
     arm_files, arm_links = inventory(arm)
-    if intel_files != arm_files:
-        missing_arm = sorted(intel_files - arm_files)
-        missing_intel = sorted(arm_files - intel_files)
-        raise SystemExit(f"App bundle file layouts differ; missing from ARM={missing_arm}, missing from Intel={missing_intel}")
+    # Some toolchains embed architecture-specific runtime libraries in only one
+    # bundle (for example, Intel's embedded libswift*.dylib files). These files
+    # must be preserved, not treated as a fatal layout mismatch. The app loader
+    # selects the matching Mach-O slice; an Intel-only dylib is never loaded by
+    # the arm64 process unless that architecture is present in the file.
     if intel_links != arm_links:
         raise SystemExit("App bundle symlink layouts differ between Intel and Apple Silicon builds.")
+    shared_files = intel_files & arm_files
+    intel_only_files = intel_files - arm_files
+    arm_only_files = arm_files - intel_files
     shutil.copytree(arm, output, symlinks=True)
+    for rel in sorted(intel_only_files):
+        source = intel / rel
+        destination = output / rel
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+        arches = lipo_arches(source)
+        if arches is not None and "x86_64" not in arches:
+            raise SystemExit(f"Intel-only Mach-O file has no x86_64 slice: {rel} ({sorted(arches)})")
+    for rel in sorted(arm_only_files):
+        source = arm / rel
+        arches = lipo_arches(source)
+        if arches is not None and "arm64" not in arches:
+            raise SystemExit(f"Apple-Silicon-only Mach-O file has no arm64 slice: {rel} ({sorted(arches)})")
+    print(f"Preserved architecture-specific bundle files: Intel-only={len(intel_only_files)}, Apple-Silicon-only={len(arm_only_files)}.")
     binaries: list[str] = []
-    for rel in sorted(intel_files):
+    for rel in sorted(shared_files):
         intel_file, arm_file = intel / rel, arm / rel
         intel_arches, arm_arches = lipo_arches(intel_file), lipo_arches(arm_file)
         if intel_arches is None and arm_arches is None:
