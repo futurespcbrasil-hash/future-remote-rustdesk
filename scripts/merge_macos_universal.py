@@ -89,8 +89,20 @@ def merge(intel: Path, arm: Path, output: Path) -> int:
         with tempfile.TemporaryDirectory(dir=destination.parent) as temp_dir:
             temp = Path(temp_dir)
             intel_thin, arm_thin, universal = temp / "intel", temp / "arm", temp / "universal"
-            run(["lipo", str(intel_file), "-thin", "x86_64", "-output", str(intel_thin)])
-            run(["lipo", str(arm_file), "-thin", "arm64", "-output", str(arm_thin)])
+
+            # lipo -thin only accepts a fat binary. Frameworks such as FMDB
+            # are often already thin in their respective architecture builds.
+            # Reuse a correctly thin input directly; extract a slice only when
+            # the input contains additional architectures.
+            if intel_arches == {"x86_64"}:
+                shutil.copy2(intel_file, intel_thin)
+            else:
+                run(["lipo", str(intel_file), "-thin", "x86_64", "-output", str(intel_thin)])
+            if arm_arches == {"arm64"}:
+                shutil.copy2(arm_file, arm_thin)
+            else:
+                run(["lipo", str(arm_file), "-thin", "arm64", "-output", str(arm_thin)])
+
             run(["lipo", "-create", str(intel_thin), str(arm_thin), "-output", str(universal)])
             os.chmod(universal, intel_file.stat().st_mode & 0o777)
             os.replace(universal, destination)
