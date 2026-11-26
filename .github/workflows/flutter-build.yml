@@ -1303,8 +1303,13 @@ jobs:
 
           root = Path(sys.argv[1]) / "Contents"
           files = [p for p in root.rglob("*") if p.is_file()]
+          # APP_NAME is a Rust configuration constant. It is validated in the
+          # checked-out source because the linker may remove its literal from the
+          # final macOS bundle when no runtime code references the string directly.
+          config = Path("libs/hbb_common/src/config.rs").read_text(encoding="utf-8")
+          if 'RwLock::new("Future-Remote".to_owned())' not in config:
+              raise SystemExit("macOS Future Remote validation failed; APP_NAME is not configured as Future-Remote.")
           required = [
-              ("Future-Remote application identifier", b"Future-Remote"),
               ("Future Remote rendezvous hostname", b"future-remote.duckdns.org"),
               ("public rendezvous key", b"NgQBktnunnDC45ZaFZX9w1fixGsGD8Wb9J0WB94niB8="),
           ]
@@ -1318,7 +1323,7 @@ jobs:
                      if not any(needle in blob for blob in blobs)]
           if missing:
               raise SystemExit("macOS Future Remote validation failed; missing: " + ", ".join(missing))
-          print("Validated Future Remote app identifier, rendezvous hostname and public key in macOS app bundle.")
+          print("Validated Future-Remote source identity, rendezvous hostname and public key in macOS app bundle.")
           PY
 
       - name: Set Future Remote macOS display name
