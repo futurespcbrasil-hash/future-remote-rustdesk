@@ -1543,6 +1543,22 @@ jobs:
           create-dmg --icon "Future Remote.app" 200 190 --hide-extension "Future Remote.app" --window-size 800 400 --app-drop-link 600 185 \
             "future-remote-${{ env.VERSION }}-universal.dmg" "./Future Remote.app"
 
+      - name: Package portable universal macOS app
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "Future Remote.app"
+          ditto -c -k --sequesterRsrc --keepParent "Future Remote.app" "future-remote-${{ env.VERSION }}-universal-portable.zip"
+          unzip -t "future-remote-${{ env.VERSION }}-universal-portable.zip"
+          unzip -Z1 "future-remote-${{ env.VERSION }}-universal-portable.zip" | grep -Fq "Future Remote.app/Contents/Info.plist"
+
+      - name: Upload portable universal macOS app
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: future-remote-universal-macos-portable
+          path: future-remote-${{ env.VERSION }}-universal-portable.zip
+          if-no-files-found: error
+
       - name: Upload universal macOS DMG
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -1558,6 +1574,7 @@ jobs:
           fail_on_unmatched_files: true
           tag_name: ${{ env.TAG_NAME }}
           files: future-remote-${{ env.VERSION }}-universal.dmg
+            future-remote-${{ env.VERSION }}-universal-portable.zip
   publish-signed-update-metadata:
     needs: [build-for-windows-flutter, build-for-windows-sciter, build-for-macOS]
     runs-on: ubuntu-22.04
