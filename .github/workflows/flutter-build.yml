@@ -1559,23 +1559,14 @@ jobs:
           path: future-remote-${{ env.VERSION }}-universal-portable.zip
           if-no-files-found: error
 
-      - name: Upload universal macOS DMG
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: future-remote-universal-macos
-          path: future-remote-${{ env.VERSION }}-universal.dmg
-          if-no-files-found: error
-
-      - name: Publish universal macOS DMG
+      - name: Publish portable universal macOS app
         if: env.UPLOAD_ARTIFACT == 'true' && env.PUBLISH_UPDATE_METADATA != 'true'
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
           fail_on_unmatched_files: true
           tag_name: ${{ env.TAG_NAME }}
-          files: |
-            future-remote-${{ env.VERSION }}-universal.dmg
-            future-remote-${{ env.VERSION }}-universal-portable.zip
+          files: future-remote-${{ env.VERSION }}-universal-portable.zip
   publish-signed-update-metadata:
     needs: [build-for-windows-flutter, build-for-windows-sciter, build-for-macOS]
     runs-on: ubuntu-22.04
